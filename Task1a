@@ -1,0 +1,36 @@
+import argparse
+import cv2 as cv
+
+# Create the parser
+parser = argparse.ArgumentParser(description='A script to perform ArUco marker detection.')
+
+# Add the --image argument
+parser.add_argument('--image', required=True, help='Path to the image to be used for detection.')
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Access the image path
+image_path = args.image
+
+# Read the image from the specified path
+
+
+# Display the image
+image = cv.imread(image_path)
+gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+aruco_dict = cv.aruco.getPredefinedDictionary(cv.aruco.DICT_4X4_100)
+parameters = cv.aruco.DetectorParameters()
+
+detector = cv.aruco.ArucoDetector(aruco_dict, parameters)
+corners, ids, rejected = detector.detectMarkers(gray)
+
+
+print("Detected markers:", ids)
+
+if ids is not None:
+    cv.aruco.drawDetectedMarkers(image, corners, ids)
+cv.imshow('Image', image)
+cv.waitKey(0)
+cv.destroyAllWindows()
