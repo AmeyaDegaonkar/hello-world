@@ -1,6 +1,7 @@
 import argparse
 import cv2 as cv
 import numpy as np
+import time 
 
 # Create the parser
 parser = argparse.ArgumentParser(description='A script to perform ArUco marker detection.')
@@ -19,7 +20,7 @@ image_path = args.image
 
 # Display the image
 image = cv.imread(image_path)
-cv.imshow('original',image)
+# cv.imshow('original',image)
 def rotate(image,angle,rotPoint=None):
     (height,width) = image.shape[:2]
 
@@ -47,7 +48,7 @@ if ids is not None:
     sorted_ids = ids[sorted_indices]
     sorted_corners = [corners[i] for i in sorted_indices]
 
-    print("Detected markers in sorted order:", sorted_ids)
+    # print("Detected markers in sorted order:", sorted_ids)
 
     # Draw detected markers in sorted order
     cv.aruco.drawDetectedMarkers(rotated, sorted_corners, sorted_ids)
@@ -140,14 +141,32 @@ def detect_infected_plants(mask, plant_positions):
 infected_block1 = detect_infected_plants(mask1, block_1)
 infected_block2 = detect_infected_plants(mask2, block_2)
 
-print(f"Infected Plant in BLock 1: P1{infected_block1[0]}")
-print(f"Infected plant in Block 2: P2{infected_block2[0]}")
+with open('Output.txt', 'w') as file:
+    # Write Block 1 infected plant result
+    file.write(f"Detected markers in sorted order: {sorted_ids}\n")
+    if infected_block1:
+        file.write(f"Infected Plant in BLock 1: P1{infected_block1[0]}\n")
+    # else:
+    #     file.write("P1None\n")  # or format for no infected plant
+    
+    # Write Block 2 infected plant result
+    if infected_block2:
+        file.write(f"Infected plant in Block 2: P2{infected_block2[0]}\n")
+    # else:
+    #     file.write("P2None\n")
 
-cv.imshow('Warped Image', warped)
-cv.imshow('Block_1',Block_1)
-cv.imshow('Block_2',Block_2)
-cv.imshow("Yellow Mask1", mask1)
-cv.imshow("Yellow Mask2", mask2)
+time.sleep(0.1)
+
+with open('Output.txt', 'r', encoding='utf-8') as f:
+    content = f.read()
+# print(f"Infected Plant in BLock 1: P1{infected_block1[0]}")
+# print(f"Infected plant in Block 2: P2{infected_block2[0]}")
+
+# cv.imshow('Warped Image', warped)
+# cv.imshow('Block_1',Block_1)
+# cv.imshow('Block_2',Block_2)
+# cv.imshow("Yellow Mask1", mask1)
+# cv.imshow("Yellow Mask2", mask2)
 
 # cv.setMouseCallback('Block_2', click_event)
 # cv.setMouseCallback('Warped Image', click_event)
