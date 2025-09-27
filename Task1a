@@ -146,7 +146,7 @@ with open('Output.txt', 'w') as file:
         file.write(f"Infected plant in Block 1:P1{infected_block1[0]}\n")
     
     if infected_block2:
-        file.write(f"Infected plant in Block 2:P1{infected_block2[0]}\n")
+        file.write(f"Infected plant in Block 2:P2{infected_block2[0]}\n")
 
 cv.waitKey(0)
 cv.destroyAllWindows()
