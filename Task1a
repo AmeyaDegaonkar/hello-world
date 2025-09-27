@@ -1,7 +1,6 @@
 import argparse
 import cv2 as cv
 import numpy as np
-import time 
 
 # Create the parser
 parser = argparse.ArgumentParser(description='A script to perform ArUco marker detection.')
@@ -52,6 +51,8 @@ if ids is not None:
 
     # Draw detected markers in sorted order
     cv.aruco.drawDetectedMarkers(rotated, sorted_corners, sorted_ids)
+
+    # cv.imshow('Aruco Markers',rotated)
 
     src_pts = np.array([
         sorted_corners[0][0][0],  # top-left corner of first marker
@@ -155,10 +156,8 @@ with open('Output.txt', 'w') as file:
     # else:
     #     file.write("P2None\n")
 
-time.sleep(0.1)
-
-with open('Output.txt', 'r', encoding='utf-8') as f:
-    content = f.read()
+# with open('Output.txt', 'r', encoding='utf-8') as f:
+#     content = f.read()
 # print(f"Infected Plant in BLock 1: P1{infected_block1[0]}")
 # print(f"Infected plant in Block 2: P2{infected_block2[0]}")
 
