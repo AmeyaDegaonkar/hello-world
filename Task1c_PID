@@ -48,7 +48,7 @@ class Swift_Pico(Node):
         self.cmd.rc_roll = 1500
         self.cmd.rc_pitch = 1500
         self.cmd.rc_yaw = 1500
-        self.cmd.rc_throttle = 1000
+        self.cmd.rc_throttle = 1500
 
         #initial setting of Kp, Kd and ki for [roll, pitch, throttle]. eg: self.Kp[2] corresponds to Kp value in throttle axis
         #after tuning and computing corresponding PID parameters, change the parameters
@@ -191,7 +191,7 @@ class Swift_Pico(Node):
         self.cmd.rc_pitch = max(self.min_values[1],min(self.cmd.rc_pitch,self.max_values[1]))
         self.cmd.rc_throttle = max(self.min_values[2],min(self.cmd.rc_throttle,self.max_values[2]))
 
-        for i in range(2):
+        for i in range(3):
             self.prev_error[i] = self.error[i]
 
     #------------------------------------------------------------------------------------------------------------------------
