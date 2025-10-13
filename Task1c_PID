@@ -38,7 +38,7 @@ class Swift_Pico(Node):
 
         # This corresponds to the setpoint you want the drone to reach or hold
         # [x_desired_state, y_desired_state, z_desired_state]
-        self.desired_state = [-7, 0, 20]  # whycon marker at the position of the drone given in the scene. Make the whycon marker associated with position_to_hold drone renderable and make changes accordingly
+        self.desired_state = [-7, 0, 20.0]  # whycon marker at the position of the drone given in the scene. Make the whycon marker associated with position_to_hold drone renderable and make changes accordingly
 
 
 
@@ -53,9 +53,9 @@ class Swift_Pico(Node):
         #initial setting of Kp, Kd and ki for [roll, pitch, throttle]. eg: self.Kp[2] corresponds to Kp value in throttle axis
         #after tuning and computing corresponding PID parameters, change the parameters
 
-        self.Kp = [0.0, 0.0, 0.0]
-        self.Ki = [0.0, 0.0, 0.0]
-        self.Kd = [0.0, 0.0, 0.0]
+        self.Kp = [0.0, 0.0, 41.0]
+        self.Ki = [0.0, 0.0, 1.3]
+        self.Kd = [0.0, 0.0, 45.9]
 
        
         #-----------------------Add other required variables for pid here ----------------------------------------------
@@ -79,7 +79,7 @@ class Swift_Pico(Node):
 
         # # This is the sample time in which you need to run pid. Choose any time which you seem fit.
     
-        self.sample_time = 0.033  # in seconds
+        self.sample_time = 0.1  # in seconds
 
         # Publishing /drone_command, /pid_error
         self.command_pub = self.create_publisher(SwiftMsgs, '/drone_command', 10)
