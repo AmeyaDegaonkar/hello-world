@@ -42,8 +42,9 @@ class WayPointServer(Node):
 
 
         self.yaw = 0.0
-        self.curr_state = [0.0, 0.0, 0.0, 0.0]
-        self.desired_state = [0.0, 0.0, 0.0, 0.0]
+        self.xyz = [0.0, 0.0, 0.0, 0.0]
+        self.curr_state = [0.0, 0.0, 0.0]
+        self.desired_state = [0.0, 0.0, 0.0]
         self.dtime = 0
 
         # Declaring a cmd of message type swift_msgs and initializing values
@@ -51,10 +52,10 @@ class WayPointServer(Node):
         self.cmd.rc_roll = 1500
         self.cmd.rc_pitch = 1500
         self.cmd.rc_yaw = 1500
-        self.cmd.rc_throttle = 1400
+        self.cmd.rc_throttle = 1500
 
         #Initiate or declare other variables here depending upon whether you are implementing PID or LQR controller.
-        self.prev_error = [0.0, 0.0, 0.0, 0.0]
+        self.prev_error = [0.0, 0.0, 0.0]
         self.max_values = [2000, 2000, 2000]
         self.min_values = [1000, 1000, 1000]
         
@@ -137,9 +138,9 @@ class WayPointServer(Node):
         self.pid_y.Kd = alt.kd * 0.6
 
     def roll_set_pid(self, alt):
-        self.pid_z.Kp = alt.kp * 0.03  # This is just for an example. You can change the ratio/fraction value accordingly
-        self.pid_z.Ki = alt.ki * 0.008
-        self.pid_y.Kd = alt.kd * 0.6
+        self.pid_x.Kp = alt.kp * 0.03  # This is just for an example. You can change the ratio/fraction value accordingly
+        self.pid_x.Ki = alt.ki * 0.008
+        self.pid_x.Kd = alt.kd * 0.6
 
     def odometry_callback(self, msg):
         orientation_q = msg.pose.pose.orientation
@@ -177,9 +178,9 @@ class WayPointServer(Node):
         #publishing the error
         self.command_pub.publish(self.cmd)
         msg = Error()
-        msg.roll_error =  self.pid_x.setpoint - self.curr_state[0] 
-        msg.pitch_error = self.pid_y.setpoint - self.curr_state[1]
-        msg.throttle_error = self.pid_z.setpoint - self.curr_state[2]
+        msg.roll_error = self.curr_state[0] - self.pid_x.setpoint 
+        msg.pitch_error = self.curr_state[1] - self.pid_y.setpoint
+        msg.throttle_error = self.curr_state[2] - self.pid_z.setpoint 
         self.pos_error_pub.publish(msg)
 
     def execute_callback(self, goal_handle:ServerGoalHandle):
@@ -210,7 +211,7 @@ class WayPointServer(Node):
 
             goal_handle.publish_feedback(feedback_msg)
 
-            drone_is_in_sphere = self.is_drone_in_sphere(self.curr_state, goal_handle, 0.08) 
+            drone_is_in_sphere = self.is_drone_in_sphere(self.curr_state, goal_handle, 0.4) 
 
             # The value 0.08 is in meters used for as error range in Whycon coordinates for LQR controller. If you are using PID controller, it will become 0.8 as PID Whycon coordinates are in decimeters.
 
