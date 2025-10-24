@@ -52,7 +52,7 @@ class WayPointServer(Node):
         self.cmd.rc_throttle = 1400
 
         #Initiate or declare other variables here depending upon whether you are implementing PID or LQR controller.
-        self.prev_error = np.zeros(3)
+        
 
 
         self.sample_time = 0.01666 #put the appropriate value according to your controller
