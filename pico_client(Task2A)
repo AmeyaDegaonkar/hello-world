@@ -102,6 +102,9 @@ class WayPointClient(Node):
             self.goals.append(waypoints)
             self.get_logger().info(f'Waypoints: {waypoints}')
 
+        if future.result() is None:
+            self.get_logger().error('Failed to get waypoints from service')
+
         self.send_goal(self.goals[0])
     
 
