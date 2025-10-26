@@ -94,6 +94,9 @@ class WayPointClient(Node):
         #write a statement to execute the service until the future is complete
         rclpy.spin_until_future_complete(self,future)
 
+        if future.result() is None:
+            self.get_logger().error('Failed to get waypoints from service')
+        
         response = future.result()
         self.get_logger().info('Waypoints received by the action client')
 
@@ -101,9 +104,6 @@ class WayPointClient(Node):
             waypoints = [pose.position.x, pose.position.y, pose.position.z]
             self.goals.append(waypoints)
             self.get_logger().info(f'Waypoints: {waypoints}')
-
-        if future.result() is None:
-            self.get_logger().error('Failed to get waypoints from service')
 
         self.send_goal(self.goals[0])
     
