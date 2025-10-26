@@ -96,7 +96,8 @@ class WayPointClient(Node):
 
         if future.result() is None:
             self.get_logger().error('Failed to get waypoints from service')
-        
+            return
+
         response = future.result()
         self.get_logger().info('Waypoints received by the action client')
 
