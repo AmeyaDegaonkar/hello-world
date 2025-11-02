@@ -45,14 +45,14 @@ class WayPointClient(Node):
     def listener_callback(self, data):
         self.get_logger().info('Receiving video frame')
         current_frame = self.br.imgmsg_to_cv2(data, desired_encoding='bgr8')
-        cv2.imshow("camera", current_frame)
+        # cv2.imshow("camera", current_frame)
 
         #clockwise 90 degree 
         rotated= cv2.rotate(current_frame,cv2.ROTATE_90_CLOCKWISE) 
-        cv2.imshow("rotated",rotated)
+        # cv2.imshow("rotated",rotated)
         #converting to grayscale
         gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
-        cv2.imshow("gray",gray)
+        # cv2.imshow("gray",gray)
         #entering co-ordinates of plants 
         block_1 = {
         ((4.39, 8.98, 29.29), (4.5, 8.88, 30.59)) : (54, 55),   #P1A((Hover (Plants) Positions),(Pesticide Application (Pickup) Positions))
@@ -79,9 +79,9 @@ class WayPointClient(Node):
         if ids is not None:
             ids_list = ids.flatten()
             self.get_logger().info(f"Detected marker IDs: {ids_list}")
-            print("Detected marker ID:" , ids_list)
+            # print("Detected marker ID:" , ids_list)
             cv2.aruco.drawDetectedMarkers(rotated, corners, ids)
-            cv2.imshow("Detected Markers",rotated)
+            # cv2.imshow("Detected Markers",rotated)
         else:
             self.get_logger().info("No markers Detected")
             print("No markers detected")
@@ -147,7 +147,7 @@ class WayPointClient(Node):
             M = cv2.getPerspectiveTransform(src_pts,dst_pts)
             #warpping rotated image
             warped= cv2.warpPerspective(rotated, M, (width, height))
-            cv2.imshow("warped",warped)
+            # cv2.imshow("warped",warped)
 
             # if not hasattr(self, 'points'):
             #     self.points = []
@@ -163,8 +163,8 @@ class WayPointClient(Node):
             #separating region of interest(ROI)
             Block_1 = warped[452:684, 74:306]
             Block_2 = warped[452:684, 452:682]
-            cv2.imshow("block_1",Block_1)
-            cv2.imshow("block_2",Block_2)
+            # cv2.imshow("block_1",Block_1)
+            # cv2.imshow("block_2",Block_2)
             #coverting to hsv
             hsv1= cv2.cvtColor(Block_1, cv2.COLOR_BGR2HSV)#Block 1
             hsv2= cv2.cvtColor(Block_2, cv2.COLOR_BGR2HSV)#Block 2
@@ -176,18 +176,18 @@ class WayPointClient(Node):
             #masking infected plants
             mask1 = cv2.inRange(hsv1, lower_value, higher_value)
             mask2 = cv2.inRange(hsv2, lower_value, higher_value)
-            cv2.imshow("mask1",mask1)
-            cv2.imshow("mask2",mask2)
+            # cv2.imshow("mask1",mask1)
+            # cv2.imshow("mask2",mask2)
             #detect infected plants
             infected_block1 = detect_infected_plants(mask1,block_1)
             infected_block2 = detect_infected_plants(mask2,block_2)
 
-            if infected_block1: 
-                print(f"Plant1 at coordinates: {infected_block1}")
+            # if infected_block1: 
+            #     print(f"Plant1 at coordinates: {infected_block1}")
 
-            unique_infected_block2 = set(infected_block2)
-            if infected_block2: 
-                print(f"Plant2 at coordinates: {unique_infected_block2}")
+            # unique_infected_block2 = set(infected_block2)
+            # if infected_block2: 
+            #     print(f"Plant2 at coordinates: {unique_infected_block2}")
 
         cv2.waitKey(1)
 
@@ -257,6 +257,10 @@ class WayPointClient(Node):
         # while not self.image_processed:
         #     rclpy.spin_once(self)
 
+        if future.result() is None:
+            self.get_logger().error('Failed to get waypoints from service')
+            return
+        
         response = future.result()
         self.get_logger().info('Waypoints received by the action client')
 
@@ -272,7 +276,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     waypoint_client = WayPointClient()
-    # waypoint_client.receive_goals()
+    waypoint_client.receive_goals()
     
     try:
         rclpy.spin(waypoint_client)
