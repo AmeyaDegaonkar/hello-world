@@ -70,40 +70,7 @@ class WayPointServer(Node):
         self.error_sum = [0.0, 0.0, 0.0]
         self.filterted_curr_state = [0.0, 0.0, 0.0]
         self.alpha = 0.2
-        self.single_sec_points = [
-            [-7.64, 3.06, 30.22],#wp1
-            [-8.22, 6.02, 30.22],#wp2
-            [-9.11, 9.27, 31.27],#start
-            [-5.976, 8.810, 31.27],#wp3
-            [-3.26, 8.41, 29.88],#hula_hoop_2_entry:
-            [0.87, 8.18, 29.05],#hula_hoop_2_exit:
-            [3.929, 7.347, 29.05],#wp4
-            [6.60, 6.62, 30.20],#block_1:
-            [6.7375, 3.3200, 30.6450],#wp5
-            [6.8750, -0.1900, 30.0900],#wp6
-            [7.0125, -3.5950, 31.5350],#wp7
-            [7.15, -7.00, 31.98],#block_2:
-            [4.0, -7.62, 30.59],#wp8:
-            [0.8, -8.04, 29.20],#hula_hoop_1_exit:
-            [-3.26, -8.12, 29.48],#hula_hoop_1_entry:
-            [-5.94, -8.36, 29.54],#wp9:
-            [-7.82, -5.55, 30.22],#wp10
-            [-7.49, -2.83, 30.22],#wp11
-            [-6.9, 0.09, 32.16]#destination:
-        ]
-        self.sec2_points = [
-            [9.13, 8.80, 30.40],#P1C(application)
-            [4.43, -4.30, 31.1],#P2A(application)
-        ]
-        self.critical_points = [
-            [-7.0, 0.0, 30.22],#hover:
-            [-9.11, 9.27, 31.27],#destination:
-            [-9.07, 9.23, 32.57],#pickup:
-            [8.62, 8.80, 28.69],#P1C(plant)
-            [4.43, -4.30, 29.74],#P2A(plant)
-        ]
-
-
+    
         self.sample_time = 0.01 #put the appropriate value according to your controller
 
         self.command_pub = self.create_publisher(SwiftMsgs, '/drone_command', 10)
@@ -256,26 +223,6 @@ class WayPointServer(Node):
         self.time_inside_sphere = 0
         self.duration = self.dtime
 
-        current_waypoint = [
-            self.desired_state[0],
-            self.desired_state[1],
-            self.desired_state[2]
-            ]
-        STABILIZATION_LIMIT = 3.0
-        def is_in_list(target_point, point_list):
-            return any(np.isclose(target_point, p, atol=0.01).all() for p in point_list)
-        
-        if is_in_list(current_waypoint, self.sec2_points):
-            STABILIZATION_LIMIT = 2.0
-        elif is_in_list(current_waypoint, self.single_sec_points):
-            STABILIZATION_LIMIT = 1.0
-        elif is_in_list(current_waypoint, self.critical_points):
-            STABILIZATION_LIMIT = 3.0
-        else:
-            STABILIZATION_LIMIT = 3.0
-
-        self.get_logger().info(f'Waypoint set: {current_waypoint}. Required Hold: {STABILIZATION_LIMIT}s')
-
         #create a NavToWaypoint feedback object. Refer to Writing an action server and client (Python) in ROS 2 tutorials.
         feedback_msg = NavToWaypoint.Feedback()
         #--------The script given below checks whether you are hovering at each of the waypoints(goals) for max of 3s---------#
@@ -312,7 +259,7 @@ class WayPointServer(Node):
             if self.time_inside_sphere > self.max_time_inside_sphere:
                 self.max_time_inside_sphere = self.time_inside_sphere
 
-            if self.max_time_inside_sphere >= STABILIZATION_LIMIT:
+            if self.max_time_inside_sphere >= 3:
                 break
             
 
