@@ -1,3 +1,14 @@
+'''
+# Team ID:          <  eYRC#1710 >
+# Theme:            < Krishi Drone >
+# Author List:      < Ameya Degaonkar,Sarthak Benodkar,Aditya Dengale,Pranav Rokade>
+# Filename:         < pico_server >
+# Functions:        < __init__, disarm, arm, whycon_callback, altitude_set_pid, pitch_set_pid, 
+# roll_set_pid, odometry_callback, pid, execute_callback, is_drone_in_sphere, main >
+# Global variables: < Kp_hover, Ki_hover, Kd_hover, Kp_travel, Ki_travel, Kd_travel, Kp, Ki, Kd, cmd, 
+# prev_error, max_values, min_values, error, p_term, d_term, i_term, PID_out, dt, error_sum, filterted_curr_state, alpha, sample_time, time_inside_sphere, 
+# max_time_inside_sphere, point_in_sphere_start_time, duration, first_waypoint_processed, yaw, xyz, curr_state, 
+# desired_state, dtime, out_roll, out_pitch, out_throttle, roll_deg, pitch_deg, yaw_deg >'''
 #!/usr/bin/env python3
 
 # This python file runs a ROS 2-node of name waypoint_server which implements an action server to navigate the Swift Pico Drone to the given waypoints.
@@ -28,6 +39,24 @@ from nav_msgs.msg import Odometry
 class WayPointServer(Node):
 
     def __init__(self):
+        '''
+Purpose:
+---
+Initializes the waypoint server node, sets up publishers, subscribers, action server, and 
+PID controller parameters for drone waypoint navigation.
+Input Arguments:
+---
+None
+
+Returns:
+---
+None
+
+Example call:
+---
+waypoint_server = WayPointServer()
+'''
+
         super().__init__('waypoint_server')
 
         self.pid_or_lqr_callback_group = ReentrantCallbackGroup()
@@ -38,7 +67,7 @@ class WayPointServer(Node):
         self.max_time_inside_sphere = 0
         self.point_in_sphere_start_time = None
         self.duration = 0
-
+        self.first_waypoint_processed = False
 
         self.yaw = 0.0
         self.xyz = [0.0, 0.0, 0.0, 0.0]
@@ -53,9 +82,21 @@ class WayPointServer(Node):
         self.cmd.rc_yaw = 1500
         self.cmd.rc_throttle = 1500
 
-        self.Kp = [-10.0, -20.0, 24.0]
-        self.Ki = [0.08, 0.08, 0.08]
-        self.Kd = [-5.0, -12.0, 12.0]
+       # 1. HOVER GAINS (For the first waypoint: [-7.00, 0.00, 29.22])
+        self.Kp_hover = [ 0.0, 0.0, 20.5]  # Example sign-corrected values
+        self.Ki_hover = [ 0.0,  0.0,  0.8]
+        self.Kd_hover = [ 0.0,  0.0, 13.0]
+        
+        # 2. TRAVEL GAINS (For Waypoints 2 through 8)
+        self.Kp_travel = [-15.0, -18.0, 20.5] 
+        self.Ki_travel = [ 0.0,   0.0,  0.8] 
+        self.Kd_travel = [-7.0, -10.0, 12.5]
+        
+        # Initialize the ACTIVE gains to the HOVER set
+        self.Kp = self.Kp_hover
+        self.Ki = self.Ki_hover
+        self.Kd = self.Kd_hover
+        # --- END GAIN SCHEDULING DEFINITION ---
 
         #Initiate or declare other variables here depending upon whether you are implementing PID or LQR controller.
         self.prev_error = [0.0, 0.0, 0.0]
@@ -100,6 +141,23 @@ class WayPointServer(Node):
         self.timer = self.create_timer(self.sample_time, self.pid, callback_group=self.pid_or_lqr_callback_group)
 
     def disarm(self):
+        '''
+Purpose:
+---
+Sends command to disarm the drone for safety, setting all control channels to minimum values.
+Input Arguments:
+---
+None
+
+Returns:
+---
+None
+
+Example call:
+---
+self.disarm()
+'''
+
         self.cmd.rc_roll = 1000
         self.cmd.rc_yaw = 1000
         self.cmd.rc_pitch = 1000
@@ -109,6 +167,24 @@ class WayPointServer(Node):
 
 
     def arm(self):
+        '''
+Purpose:
+---
+Arms the drone by sending control values to appropriate channels, preparing for flight and navigation.
+
+Input Arguments:
+---
+None
+
+Returns:
+---
+None
+
+Example call:
+---
+self.arm()
+'''
+
         self.disarm()
         self.cmd.rc_roll = 1500
         self.cmd.rc_yaw = 1500
@@ -121,6 +197,27 @@ class WayPointServer(Node):
 	# Whycon callback function
 	# The function gets executed each time when /whycon node publishes /whycon/poses 
     def whycon_callback(self, msg):
+        '''
+Purpose:
+---
+Receives position data from the /whycon/poses 
+topic and updates the drone's current state using a low-pass filter.
+
+Input Arguments:
+---
+`msg` : [PoseArray]
+    PoseArray message from /whycon/poses topic containing position data.
+
+Returns:
+---
+None
+
+
+Example call:
+---
+self.whycon_callback(msg)
+'''
+
 
         if not msg.poses or len(msg.poses) == 0:
             self.get_logger().warn("No poses received")
@@ -145,21 +242,99 @@ class WayPointServer(Node):
     # If you are using PID controller, then define callback function like altitide_set_pid to tune pitch, roll.
     #If you are using LQR controller, then define a functions which were given in the boiler plate code of task 1c and the ones which you have defined on yur own.
     def altitude_set_pid(self, alt):
+        '''
+Purpose:
+---
+Updates PID gains for altitude control using incoming PIDTune message.
+
+Input Arguments:
+---
+`alt` : [PIDTune]
+    PID tuning gains for altitude (throttle) control.
+
+Returns:
+---
+None
+
+Example call:
+---
+self.altitude_set_pid(alt)
+'''
+
         self.Kp[2] = alt.kp * 0.03  # This is just for an example. You can change the ratio/fraction value accordingly
         self.Ki[2] = alt.ki * 0.008
         self.Kd[2] = alt.kd * 0.6
 
     def pitch_set_pid(self, alt):
+        '''
+Purpose:
+---
+Updates PID gains for pitch control using incoming PIDTune message.
+
+Input Arguments:
+---
+`alt` : [PIDTune]
+    PID tuning gains for pitch control.
+
+Returns:
+---
+
+None
+
+Example call:
+---
+self.pitch_set_pid(alt)
+'''
+
         self.Kp[0] = alt.kp * 0.03  # This is just for an example. You can change the ratio/fraction value accordingly
         self.Ki[0] = alt.ki * 0.008
         self.Kd[0] = alt.kd * 0.6
 
     def roll_set_pid(self, alt):
+        '''
+Purpose:
+---
+Updates PID gains for roll control using incoming PIDTune message.
+
+Input Arguments:
+---
+`alt` : [PIDTune]
+    PID tuning gains for roll control.
+
+Returns:
+---
+None
+
+Example call:
+---
+self.roll_set_pid(alt)
+'''
+
         self.Kp[1] = alt.kp * 0.03  # This is just for an example. You can change the ratio/fraction value accordingly
         self.Ki[1] = alt.ki * 0.008
         self.Kd[1] = alt.kd * 0.6
 
     def odometry_callback(self, msg):
+        '''
+Purpose:
+---
+Receives orientation data from the /rotors/odometry topic,
+converts quaternion to Euler angles, and updates yaw, pitch, roll values.
+
+Input Arguments:
+---
+`msg` : [Odometry]
+    Odometry message containing drone orientation.
+
+Returns:
+---
+None
+
+Example call:
+---
+self.odometry_callback(msg)
+'''
+
         orientation_q = msg.pose.pose.orientation
         orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
         roll, pitch, yaw = euler_from_quaternion(orientation_list)
@@ -172,6 +347,27 @@ class WayPointServer(Node):
     #define the function to be run inside the timer callback. This function will implement the PID or LQR algorithm. 
     # This will be either 'pid' finction or 'controller' function as you can see in the boiler plate for PID or LQR for task 1c.
     def pid(self):
+        '''
+Purpose:
+---
+Calculates PID control output for roll, pitch, and throttle.
+Publishes command signals and position errors for navigation correction.
+
+Input Arguments:
+---
+None
+
+
+Returns:
+---
+None
+
+Example call:
+---
+
+self.pid()
+'''
+
         self.error[0] = self.curr_state[0] - self.desired_state[0]
         self.error[1] = self.curr_state[1] - self.desired_state[1]
         self.error[2] = self.curr_state[2] - self.desired_state[2]
@@ -211,6 +407,26 @@ class WayPointServer(Node):
         self.pos_error_pub.publish(msg)
 
     def execute_callback(self, goal_handle:ServerGoalHandle):
+        '''
+Purpose:
+---
+Handles incoming navigation goals from the action server, 
+manages feedback about drone stabilization, and returns action results to client.
+
+Input Arguments:
+---
+`goal_handle` : [ServerGoalHandle]
+    Action server goal handle containing requested waypoint.
+
+Returns:
+---
+`result` : [NavToWaypoint.Result]
+    Result object describing stabilization time at waypoint.
+
+Example call:
+---
+self.execute_callback(goal_handle)
+'''
 
         self.get_logger().info('Executing goal...')
         self.desired_state[0] = goal_handle.request.waypoint.position.x
@@ -221,7 +437,12 @@ class WayPointServer(Node):
         self.max_time_inside_sphere = 0
         self.point_in_sphere_start_time = None
         self.time_inside_sphere = 0
-        self.duration = self.dtime
+        self.duration = self.dtime 
+        # --- GAIN SWITCHING LOGIC ---             
+        self.Kp = self.Kp_travel
+        self.Ki = self.Ki_travel
+        self.Kd = self.Kd_travel  
+        # --- END GAIN SWITCHING ---
 
         #create a NavToWaypoint feedback object. Refer to Writing an action server and client (Python) in ROS 2 tutorials.
         feedback_msg = NavToWaypoint.Feedback()
@@ -261,7 +482,7 @@ class WayPointServer(Node):
 
             if self.max_time_inside_sphere >= 3:
                 break
-            
+
 
         goal_handle.succeed()
 
@@ -271,6 +492,32 @@ class WayPointServer(Node):
         return result
 
     def is_drone_in_sphere(self, drone_pos, sphere_center, radius):
+        '''
+Purpose:
+---
+Checks if the drone's current position is within a specified radius of the target waypoint.
+
+Input Arguments:
+---
+`drone_pos` : [list of float]
+    List containing current drone x, y, z position.
+
+`sphere_center` : [ServerGoalHandle]
+    Action server goal handle containing waypoint position.
+
+`radius` : [float]
+    Radius of sphere.
+
+Returns:
+---
+[out] : [bool]
+    True if drone is within sphere, False otherwise.
+
+Example call:
+---
+self.is_drone_in_sphere(drone_pos, sphere_center, radius)
+'''
+
         return (
             (drone_pos[0] - sphere_center.request.waypoint.position.x) ** 2
             + (drone_pos[1] - sphere_center.request.waypoint.position.y) ** 2
@@ -279,6 +526,26 @@ class WayPointServer(Node):
 
 
 def main(args=None):
+    '''
+Purpose:
+---
+Initializes ROS2, starts the waypoint server node using a multi-threaded executor,
+and keeps the node spinning until shutdown.
+
+Input Arguments:
+---
+`args` : [list or None]
+    Optional command line arguments for rclpy.init()
+
+Returns:
+---
+None
+
+Example call:
+---
+main()
+'''
+
     rclpy.init(args=args)
 
     waypoint_server = WayPointServer()
