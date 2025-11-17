@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 '''
 # Team ID:          <  eYRC#1710 >
 # Theme:            < Krishi Drone >
@@ -8,8 +9,9 @@
 # Global variables: < Kp_hover, Ki_hover, Kd_hover, Kp_travel, Ki_travel, Kd_travel, Kp, Ki, Kd, cmd, 
 # prev_error, max_values, min_values, error, p_term, d_term, i_term, PID_out, dt, error_sum, filterted_curr_state, alpha, sample_time, time_inside_sphere, 
 # max_time_inside_sphere, point_in_sphere_start_time, duration, first_waypoint_processed, yaw, xyz, curr_state, 
-# desired_state, dtime, out_roll, out_pitch, out_throttle, roll_deg, pitch_deg, yaw_deg >'''
-#!/usr/bin/env python3
+# desired_state, dtime, out_roll, out_pitch, out_throttle, roll_deg, pitch_deg, yaw_deg,self.alpha , self.d_term_filtered 
+#  self.hover_gains,  self.travel_gains,self.hover_point,self.gain_switch_radius,self.d_alpha,self.d_term_filtered>'''
+
 
 # This python file runs a ROS 2-node of name waypoint_server which implements an action server to navigate the Swift Pico Drone to the given waypoints.
 # You can use either PID or LQR controller to navigate the drone to the given waypoints.
@@ -67,7 +69,6 @@ waypoint_server = WayPointServer()
         self.max_time_inside_sphere = 0
         self.point_in_sphere_start_time = None
         self.duration = 0
-        self.first_waypoint_processed = False
 
         self.yaw = 0.0
         self.xyz = [0.0, 0.0, 0.0, 0.0]
@@ -82,21 +83,9 @@ waypoint_server = WayPointServer()
         self.cmd.rc_yaw = 1500
         self.cmd.rc_throttle = 1500
 
-       # 1. HOVER GAINS (For the first waypoint: [-7.00, 0.00, 29.22])
-        self.Kp_hover = [ 0.0, 0.0, 20.5]  # Example sign-corrected values
-        self.Ki_hover = [ 0.0,  0.0,  0.8]
-        self.Kd_hover = [ 0.0,  0.0, 13.0]
-        
-        # 2. TRAVEL GAINS (For Waypoints 2 through 8)
-        self.Kp_travel = [-15.0, -18.0, 20.5] 
-        self.Ki_travel = [ 0.0,   0.0,  0.8] 
-        self.Kd_travel = [-7.0, -10.0, 12.5]
-        
-        # Initialize the ACTIVE gains to the HOVER set
-        self.Kp = self.Kp_hover
-        self.Ki = self.Ki_hover
-        self.Kd = self.Kd_hover
-        # --- END GAIN SCHEDULING DEFINITION ---
+        self.Kp = [ 0.0, 0.0, 0.0] 
+        self.Ki = [ 0.0, 0.0, 0.0] 
+        self.Kd = [ 0.0, 0.0, 0.0]
 
         #Initiate or declare other variables here depending upon whether you are implementing PID or LQR controller.
         self.prev_error = [0.0, 0.0, 0.0]
@@ -109,10 +98,30 @@ waypoint_server = WayPointServer()
         self.PID_out = [0.0, 0.0, 0.0]
         self.dt = [0.0, 0.0, 0.0]
         self.error_sum = [0.0, 0.0, 0.0]
-        self.filterted_curr_state = [0.0, 0.0, 0.0]
-        self.alpha = 0.2
-    
-        self.sample_time = 0.01 #put the appropriate value according to your controller
+        #variable for filter
+        self.alpha = 0.9
+        self.filtered_curr_state = [0.0,0.0,0.0]
+        #gain scheduling 
+        self.hover_gains = {
+            'Kp': [0.0, 0.0, 40.0],
+            'Ki': [0.0, 0.0, 1.0],
+            'Kd': [0.0, 0.0, 40.0]
+        }
+        self.travel_gains = {
+        'Kp': [-20.0, -25.0, 40.0],
+        'Ki': [ -1.0, -1.0,  1.0],
+        'Kd': [-20.0, -25.0, 40.0]
+        }
+
+        #hover_point decide which gain to pick
+        self.hover_point = [-7.00, 0.00, 29.22]
+        self.gain_switch_radius = 0.5 # meters
+
+        #variable for d filter
+        self.d_alpha = 0.95
+        self.d_term_filtered = [0.0, 0.0, 0.0]
+
+        self.sample_time = 0.03 #put the appropriate value according to your controller
 
         self.command_pub = self.create_publisher(SwiftMsgs, '/drone_command', 10)
         self.pos_error_pub = self.create_publisher(Error, '/position_error', 10)
@@ -225,17 +234,18 @@ self.whycon_callback(msg)
 
         else:
             #complete the function according to your controller as you did in task 1c.
+            #filter
             raw_x = msg.poses[0].position.x 
             raw_y = msg.poses[0].position.y 
             raw_z = msg.poses[0].position.z 
+            
+            self.filtered_curr_state[0]=self.alpha * raw_x + (1 - self.alpha)* self.filtered_curr_state[0]
+            self.filtered_curr_state[1]=self.alpha * raw_y + (1 - self.alpha)* self.filtered_curr_state[1]
+            self.filtered_curr_state[2]=self.alpha * raw_z + (1 - self.alpha)* self.filtered_curr_state[2]
 
-            self.filterted_curr_state[0]=self.alpha * raw_x + (1 - self.alpha)* self.filterted_curr_state[0]
-            self.filterted_curr_state[1]=self.alpha * raw_y + (1 - self.alpha)* self.filterted_curr_state[1]
-            self.filterted_curr_state[2]=self.alpha * raw_z + (1 - self.alpha)* self.filterted_curr_state[2]
-
-            self.curr_state[0] = self.filterted_curr_state[0]
-            self.curr_state[1] = self.filterted_curr_state[1]
-            self.curr_state[2] = self.filterted_curr_state[2]
+            self.curr_state[0] = self.filtered_curr_state[0]
+            self.curr_state[1] = self.filtered_curr_state[1]
+            self.curr_state[2] = self.filtered_curr_state[2]
 
         self.dtime = msg.header.stamp.sec
 
@@ -342,7 +352,7 @@ self.odometry_callback(msg)
         self.roll_deg = math.degrees(roll)
         self.pitch_deg = math.degrees(pitch)
         self.yaw_deg = math.degrees(yaw)
-        self.yaw = self.yaw_deg		
+        self.yaw = self.yaw_deg	
 
     #define the function to be run inside the timer callback. This function will implement the PID or LQR algorithm. 
     # This will be either 'pid' finction or 'controller' function as you can see in the boiler plate for PID or LQR for task 1c.
@@ -366,22 +376,32 @@ Example call:
 ---
 
 self.pid()
-'''
-
+''' 
         self.error[0] = self.curr_state[0] - self.desired_state[0]
         self.error[1] = self.curr_state[1] - self.desired_state[1]
         self.error[2] = self.curr_state[2] - self.desired_state[2]
 
+        deadband = [0.4,0.4,0.25]
+        for i in range(3):
+            if abs(self.error[i]) < deadband[i]:
+                self.error[i] = 0.0 
+
         for i in range(3):
             self.p_term[i] = self.Kp[i] * self.error[i] 
             
+            #derivative        
             self.dt[i] = (self.error[i] - self.prev_error[i]) / self.sample_time
             self.d_term[i] = self.Kd[i] * self.dt[i]
+            
+            #first order low _pass filter
+            self.d_term_filtered[i] = self.d_alpha * self.d_term_filtered[i] + (1.0 - self.d_alpha) * self.d_term[i]
 
+            # integral calculation
             self.error_sum[i] += self.error[i] * self.sample_time
             self.i_term[i] = self.error_sum[i] * self.Ki[i]
 
-            self.PID_out[i] = self.p_term[i]+self.i_term[i]+self.d_term[i] 
+            # use filtered derivative in final PID output
+            self.PID_out[i] = self.p_term[i] + self.i_term[i] + self.d_term_filtered[i]
         
         self.out_roll = self.PID_out[1]
         self.out_pitch = self.PID_out[0]
@@ -434,55 +454,96 @@ self.execute_callback(goal_handle)
         self.desired_state[2] = goal_handle.request.waypoint.position.z
 
         self.get_logger().info(f'New Waypoint Set: {self.desired_state}')
+        
+        target = self.desired_state
+
+        dist = math.sqrt(
+            (target[0] - self.hover_point[0])**2 +
+            (target[1] - self.hover_point[1])**2 +
+            (target[2] - self.hover_point[2])**2
+        )
+
+        if dist <= self.gain_switch_radius:
+            self.get_logger().info("Using HOVER gains")
+            self.Kp = self.hover_gains['Kp'].copy()
+            self.Ki = self.hover_gains['Ki'].copy()
+            self.Kd = self.hover_gains['Kd'].copy()
+        else:
+            self.get_logger().info("Using TRAVEL gains")
+            self.Kp = self.travel_gains['Kp'].copy()
+            self.Ki = self.travel_gains['Ki'].copy()
+            self.Kd = self.travel_gains['Kd'].copy()
+
         self.max_time_inside_sphere = 0
         self.point_in_sphere_start_time = None
         self.time_inside_sphere = 0
         self.duration = self.dtime 
-        # --- GAIN SWITCHING LOGIC ---             
-        self.Kp = self.Kp_travel
-        self.Ki = self.Ki_travel
-        self.Kd = self.Kd_travel  
-        # --- END GAIN SWITCHING ---
+
+        for i in range(3):
+            self.error[i] = 0.0
+            self.prev_error[i]=0.0
+            self.error_sum[i]=0.0
+            self.d_term_filtered[i]=0.0
+            self.p_term[i]=0.0
+            self.i_term[i]=0.0
+            self.d_term[i]=0.0
+            self.PID_out[i]=0.0
+            
+        stabilize_here = target[0] < -4.5
 
         #create a NavToWaypoint feedback object. Refer to Writing an action server and client (Python) in ROS 2 tutorials.
         feedback_msg = NavToWaypoint.Feedback()
         #--------The script given below checks whether you are hovering at each of the waypoints(goals) for max of 3s---------#
         # This will help you to analyse the drone behaviour and help you to tune the PID better.
+        if stabilize_here:
+            while True:
+		#current whycon poses
+                feedback_msg.current_waypoint.pose.position.x = round(self.curr_state[0],2)
+                feedback_msg.current_waypoint.pose.position.y = round(self.curr_state[1],2)
+                feedback_msg.current_waypoint.pose.position.z = round(self.curr_state[2],2)
+                feedback_msg.current_waypoint.header.stamp.sec = self.max_time_inside_sphere
 
-        while True:
-			#current whycon poses
-            feedback_msg.current_waypoint.pose.position.x = self.curr_state[0]
-            feedback_msg.current_waypoint.pose.position.y = self.curr_state[1]
-            feedback_msg.current_waypoint.pose.position.z = self.curr_state[2]
-            feedback_msg.current_waypoint.header.stamp.sec = self.max_time_inside_sphere
+                goal_handle.publish_feedback(feedback_msg)
 
-            goal_handle.publish_feedback(feedback_msg)
-
-            drone_is_in_sphere = self.is_drone_in_sphere(self.curr_state, goal_handle, 0.8) 
+                drone_is_in_sphere = self.is_drone_in_sphere(self.curr_state, goal_handle, 0.8) 
 
             # The value 0.08 is in meters used for as error range in Whycon coordinates for LQR controller. If you are using PID controller, it will become 0.8 as PID Whycon coordinates are in decimeters.
 
-            if not drone_is_in_sphere and self.point_in_sphere_start_time is None:
-                pass
+                if not drone_is_in_sphere and self.point_in_sphere_start_time is None:
+                    pass
             
-            elif drone_is_in_sphere and self.point_in_sphere_start_time is None:
-                self.point_in_sphere_start_time = self.dtime
-                self.get_logger().info('Drone in sphere for 1st time')#you can choose to comment this out to get a better look at other logs
+                elif drone_is_in_sphere and self.point_in_sphere_start_time is None:
+                    self.point_in_sphere_start_time = self.dtime
+                    self.get_logger().info('Drone in sphere for 1st time')#you can choose to comment this out to get a better look at other logs
 
-            elif drone_is_in_sphere and self.point_in_sphere_start_time is not None:
-                self.time_inside_sphere = self.dtime - self.point_in_sphere_start_time
-                self.get_logger().info('Drone in sphere')#you can choose to comment this out to get a better look at other logs
-                             
-            elif not drone_is_in_sphere and self.point_in_sphere_start_time is not None:
-                self.get_logger().info('Drone out of sphere')#you can choose to comment this out to get a better look at other logs
-                self.point_in_sphere_start_time = None
+                elif drone_is_in_sphere and self.point_in_sphere_start_time is not None:
+                    self.time_inside_sphere = self.dtime- self.point_in_sphere_start_time
+                    self.get_logger().info('Drone in sphere')#you can choose to comment this out to get a better look at other logs
+                              
+                elif not drone_is_in_sphere and self.point_in_sphere_start_time is not None:
+                    self.get_logger().info('Drone out of sphere')#you can choose to comment this out to get a better look at other logs
+                    self.point_in_sphere_start_time = None
+                    self.time_inside_sphere = 0
+                    self.max_time_inside_sphere = 0
 
-            if self.time_inside_sphere > self.max_time_inside_sphere:
-                self.max_time_inside_sphere = self.time_inside_sphere
+                if self.time_inside_sphere > self.max_time_inside_sphere:
+                    self.max_time_inside_sphere = self.time_inside_sphere
 
-            if self.max_time_inside_sphere >= 3:
-                break
+                if self.max_time_inside_sphere >= 2:
+                    break
+        else:
+            while True:
+                feedback_msg.current_waypoint.pose.position.x = round(self.curr_state[0],2)
+                feedback_msg.current_waypoint.pose.position.y = round(self.curr_state[1],2)
+                feedback_msg.current_waypoint.pose.position.z = round(self.curr_state[2],2)
+                feedback_msg.current_waypoint.header.stamp.sec = 1
 
+                goal_handle.publish_feedback(feedback_msg)
+
+                drone_is_in_sphere = self.is_drone_in_sphere(self.curr_state, goal_handle, 0.8) 
+
+                if drone_is_in_sphere:  
+                    break
 
         goal_handle.succeed()
 
@@ -519,10 +580,10 @@ self.is_drone_in_sphere(drone_pos, sphere_center, radius)
 '''
 
         return (
-            (drone_pos[0] - sphere_center.request.waypoint.position.x) ** 2
+            (drone_pos[0] - sphere_center.request.waypoint.position.x)** 2
             + (drone_pos[1] - sphere_center.request.waypoint.position.y) ** 2
             + (drone_pos[2] - sphere_center.request.waypoint.position.z) ** 2
-        ) <= radius**2
+        ) < radius**2
 
 
 def main(args=None):
